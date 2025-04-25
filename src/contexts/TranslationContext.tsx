@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from "react";
 import { TranslationJob } from "@/types";
 import { v4 as uuidv4 } from "uuid";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { translateText, performOCR } from "@/utils/ocrAndTranslate";
 
 type TranslationContextType = {
@@ -42,33 +42,32 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
     translationStyle: string,
     imageData?: string
   ) => {
+    if (!imageData) {
+      toast({
+        variant: "destructive",
+        title: "No image selected",
+        description: "Please upload a manga image to translate",
+        duration: 3000,
+      });
+      return;
+    }
+
+    const job: TranslationJob = {
+      id: uuidv4(),
+      status: "pending",
+      progress: 0,
+      sourceLanguage,
+      targetLanguage,
+      font,
+      fontSize,
+      translationStyle,
+      imageData,
+    };
+
+    setJobs((prevJobs) => [...prevJobs, job]);
+    setCurrentJob(job);
+
     try {
-      if (!imageData) {
-        toast({
-          variant: "destructive",
-          title: "No image selected",
-          description: "Please upload a manga image to translate",
-          duration: 3000,
-        });
-        return;
-      }
-
-      // Create a new job
-      const newJob: TranslationJob = {
-        id: uuidv4(),
-        status: "pending",
-        progress: 0,
-        sourceLanguage,
-        targetLanguage,
-        font,
-        fontSize,
-        translationStyle,
-        imageData,
-      };
-
-      setJobs((prevJobs) => [...prevJobs, newJob]);
-      setCurrentJob(newJob);
-
       // Start OCR
       toast({
         title: "OCR Processing",
@@ -79,8 +78,8 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
       const extractedText = await performOCR(imageData);
       
       setJobs((prevJobs) =>
-        prevJobs.map((job) =>
-          job.id === newJob.id ? { ...job, progress: 50 } : job
+        prevJobs.map((j) =>
+          j.id === job.id ? { ...j, progress: 50 } : j
         )
       );
 
@@ -97,23 +96,22 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
         targetLanguage
       );
 
-      // For now, we'll just store the translated text
-      // In a real implementation, you would render this back onto the image
+      // Store the translated text
       setJobs((prevJobs) =>
-        prevJobs.map((job) =>
-          job.id === newJob.id
+        prevJobs.map((j) =>
+          j.id === job.id
             ? {
-                ...job,
+                ...j,
                 progress: 100,
                 status: "completed",
                 resultData: translatedText
               }
-            : job
+            : j
         )
       );
 
       setCurrentJob((prev) =>
-        prev?.id === newJob.id
+        prev?.id === job.id
           ? {
               ...prev,
               progress: 100,
@@ -131,7 +129,7 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
 
     } catch (error) {
       console.error("Translation failed", error);
-      handleTranslationError(newJob.id, "Translation failed. Please try again.");
+      handleTranslationError(job.id, error instanceof Error ? error.message : "Translation failed. Please try again.");
     }
   };
 

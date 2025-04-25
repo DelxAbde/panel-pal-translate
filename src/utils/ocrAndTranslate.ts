@@ -9,18 +9,18 @@ export const translateText = async (
   try {
     const response = await fetch(LIBRETRANSLATE_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         q: text,
         source: sourceLanguage,
         target: targetLanguage,
       }),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
     });
 
     if (!response.ok) {
-      throw new Error('Translation failed');
+      throw new Error(`Translation failed: ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -31,19 +31,20 @@ export const translateText = async (
   }
 };
 
-// We'll use Tesseract.js for OCR
 export const performOCR = async (imageData: string): Promise<string> => {
-  // We need to add Tesseract.js as a dependency
   const Tesseract = (await import('tesseract.js')).default;
 
   try {
+    console.log('Starting OCR process...');
     const worker = await Tesseract.createWorker();
     await worker.loadLanguage('eng+jpn');
     await worker.initialize('eng+jpn');
     
+    console.log('Processing image with Tesseract...');
     const { data: { text } } = await worker.recognize(imageData);
     await worker.terminate();
     
+    console.log('OCR completed successfully');
     return text;
   } catch (error) {
     console.error('OCR error:', error);
