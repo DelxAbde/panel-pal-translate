@@ -1,0 +1,25 @@
+
+{
+  "manifest_version": 3,
+  "name": "Panel Pal - Manga Translator",
+  "version": "1.0.0",
+  "description": "Translate manga and manhwa pages easily between multiple languages",
+  "action": {
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    },
+    "default_popup": "index.html",
+    "default_title": "Panel Pal"
+  },
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
