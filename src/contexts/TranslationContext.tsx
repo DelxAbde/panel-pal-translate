@@ -1,8 +1,8 @@
-
 import { createContext, useContext, useState } from "react";
-import { TranslationJob, User } from "@/types";
+import { TranslationJob } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/components/ui/use-toast";
+import { translateText, performOCR } from "@/utils/ocrAndTranslate";
 
 type TranslationContextType = {
   jobs: TranslationJob[];
@@ -34,28 +34,6 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
   const [currentJob, setCurrentJob] = useState<TranslationJob | null>(null);
   const { toast } = useToast();
 
-  // Mock translation function - in a real app, this would call an OCR API
-  const performOCRAndTranslation = async (
-    imageData: string,
-    sourceLanguage: string,
-    targetLanguage: string
-  ) => {
-    // This is a placeholder for actual OCR and translation
-    // In a real implementation, this would:
-    // 1. Call an OCR API to extract text from the image
-    // 2. Send the extracted text to a translation API
-    // 3. Return the translated text
-    
-    console.log(`Translating from ${sourceLanguage} to ${targetLanguage}`);
-    
-    // Simulating processing delay with more realistic steps
-    await new Promise(resolve => setTimeout(resolve, 1500)); // OCR delay
-    
-    // For demo purposes, we're just returning the same image
-    // In a real app, you would render the translated text back onto the image
-    return imageData;
-  };
-
   const startTranslation = async (
     sourceLanguage: string,
     targetLanguage: string,
@@ -74,7 +52,7 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
         });
         return;
       }
-      
+
       // Create a new job
       const newJob: TranslationJob = {
         id: uuidv4(),
@@ -87,108 +65,73 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
         translationStyle,
         imageData,
       };
-      
+
       setJobs((prevJobs) => [...prevJobs, newJob]);
       setCurrentJob(newJob);
+
+      // Start OCR
       toast({
-        title: "Translation started",
-        description: "Your manga is being processed...",
+        title: "OCR Processing",
+        description: "Detecting text in your manga...",
+        duration: 2000,
+      });
+
+      const extractedText = await performOCR(imageData);
+      
+      setJobs((prevJobs) =>
+        prevJobs.map((job) =>
+          job.id === newJob.id ? { ...job, progress: 50 } : job
+        )
+      );
+
+      // Translate the extracted text
+      toast({
+        title: "Translation",
+        description: `Translating from ${sourceLanguage} to ${targetLanguage}...`,
+        duration: 2000,
+      });
+
+      const translatedText = await translateText(
+        extractedText,
+        sourceLanguage,
+        targetLanguage
+      );
+
+      // For now, we'll just store the translated text
+      // In a real implementation, you would render this back onto the image
+      setJobs((prevJobs) =>
+        prevJobs.map((job) =>
+          job.id === newJob.id
+            ? {
+                ...job,
+                progress: 100,
+                status: "completed",
+                resultData: translatedText
+              }
+            : job
+        )
+      );
+
+      setCurrentJob((prev) =>
+        prev?.id === newJob.id
+          ? {
+              ...prev,
+              progress: 100,
+              status: "completed",
+              resultData: translatedText
+            }
+          : prev
+      );
+
+      toast({
+        title: "Translation completed",
+        description: "Your manga has been translated successfully!",
         duration: 3000,
       });
 
-      // Simulate translation process with progress updates and more realistic steps
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 5;
-        
-        setJobs((prevJobs) =>
-          prevJobs.map((job) =>
-            job.id === newJob.id ? { ...job, progress, status: "processing" } : job
-          )
-        );
-        
-        setCurrentJob((prev) => 
-          prev?.id === newJob.id ? { ...prev, progress, status: "processing" } : prev
-        );
-
-        // Add more detailed status messages based on progress
-        if (progress === 10) {
-          toast({
-            title: "OCR Processing",
-            description: "Detecting text in your manga...",
-            duration: 2000,
-          });
-        } else if (progress === 40) {
-          toast({
-            title: "Translation",
-            description: `Translating from ${sourceLanguage} to ${targetLanguage}...`,
-            duration: 2000,
-          });
-        } else if (progress === 70) {
-          toast({
-            title: "Rendering",
-            description: "Applying translations to your manga...",
-            duration: 2000,
-          });
-        }
-
-        if (progress >= 100) {
-          clearInterval(interval);
-          
-          // Process translation when complete
-          setTimeout(async () => {
-            try {
-              // In a real app, this would actually translate the image
-              const resultData = await performOCRAndTranslation(
-                imageData,
-                sourceLanguage,
-                targetLanguage
-              );
-              
-              setJobs((prevJobs) =>
-                prevJobs.map((job) =>
-                  job.id === newJob.id
-                    ? {
-                        ...job,
-                        progress: 100,
-                        status: "completed",
-                        resultData: resultData,
-                      }
-                    : job
-                )
-              );
-              
-              setCurrentJob((prev) =>
-                prev?.id === newJob.id
-                  ? {
-                      ...prev,
-                      progress: 100,
-                      status: "completed",
-                      resultData: resultData,
-                    }
-                  : prev
-              );
-              
-              toast({
-                title: "Translation completed",
-                description: "Your manga has been translated successfully!",
-                duration: 3000,
-              });
-            } catch (error) {
-              console.error("Error during translation processing:", error);
-              handleTranslationError(newJob.id, "Error processing translation");
-            }
-          }, 1000);
-        }
-      }, 300); // Faster updates for a smoother experience
     } catch (error) {
       console.error("Translation failed", error);
-      toast({
-        variant: "destructive",
-        title: "Translation failed",
-        description: "An error occurred during translation",
-        duration: 3000,
-      });
+      handleTranslationError(newJob.id, "Translation failed. Please try again.");
     }
   };
 
