@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTranslation } from "@/contexts/TranslationContext";
 import { Download } from "lucide-react";
+import { LANGUAGES } from "@/lib/constants";
 
 export function UserProfile() {
   const { user, logout } = useAuth();

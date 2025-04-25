@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -27,7 +26,7 @@ import {
 import { useTranslation } from "@/contexts/TranslationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { FONTS, FONT_SIZES, LANGUAGES, TRANSLATION_STYLES } from "@/lib/constants";
-import { Info, Upload, Translate, ArrowRight } from "lucide-react";
+import { Info, Upload, ArrowRight } from "lucide-react";
 
 export function TranslationForm() {
   const { user } = useAuth();
@@ -268,7 +267,7 @@ export function TranslationForm() {
           disabled={!imageData || isUploading}
           className="w-full bg-manga-primary hover:bg-manga-secondary"
         >
-          <Translate className="mr-2 h-4 w-4" />
+          <ArrowRight className="mr-2 h-4 w-4" />
           Translate Now
         </Button>
       </CardFooter>
