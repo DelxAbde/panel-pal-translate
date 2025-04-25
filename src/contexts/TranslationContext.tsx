@@ -34,6 +34,28 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
   const [currentJob, setCurrentJob] = useState<TranslationJob | null>(null);
   const { toast } = useToast();
 
+  // Mock translation function - in a real app, this would call an OCR API
+  const performOCRAndTranslation = async (
+    imageData: string,
+    sourceLanguage: string,
+    targetLanguage: string
+  ) => {
+    // This is a placeholder for actual OCR and translation
+    // In a real implementation, this would:
+    // 1. Call an OCR API to extract text from the image
+    // 2. Send the extracted text to a translation API
+    // 3. Return the translated text
+    
+    console.log(`Translating from ${sourceLanguage} to ${targetLanguage}`);
+    
+    // Simulating processing delay with more realistic steps
+    await new Promise(resolve => setTimeout(resolve, 1500)); // OCR delay
+    
+    // For demo purposes, we're just returning the same image
+    // In a real app, you would render the translated text back onto the image
+    return imageData;
+  };
+
   const startTranslation = async (
     sourceLanguage: string,
     targetLanguage: string,
@@ -43,6 +65,16 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
     imageData?: string
   ) => {
     try {
+      if (!imageData) {
+        toast({
+          variant: "destructive",
+          title: "No image selected",
+          description: "Please upload a manga image to translate",
+          duration: 3000,
+        });
+        return;
+      }
+      
       // Create a new job
       const newJob: TranslationJob = {
         id: uuidv4(),
@@ -64,11 +96,10 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
         duration: 3000,
       });
 
-      // Simulate translation process with progress updates
-      // In a real app, this would call an API or use a library
+      // Simulate translation process with progress updates and more realistic steps
       let progress = 0;
       const interval = setInterval(() => {
-        progress += 10;
+        progress += 5;
         
         setJobs((prevJobs) =>
           prevJobs.map((job) =>
@@ -80,43 +111,76 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
           prev?.id === newJob.id ? { ...prev, progress, status: "processing" } : prev
         );
 
+        // Add more detailed status messages based on progress
+        if (progress === 10) {
+          toast({
+            title: "OCR Processing",
+            description: "Detecting text in your manga...",
+            duration: 2000,
+          });
+        } else if (progress === 40) {
+          toast({
+            title: "Translation",
+            description: `Translating from ${sourceLanguage} to ${targetLanguage}...`,
+            duration: 2000,
+          });
+        } else if (progress === 70) {
+          toast({
+            title: "Rendering",
+            description: "Applying translations to your manga...",
+            duration: 2000,
+          });
+        }
+
         if (progress >= 100) {
           clearInterval(interval);
           
-          // Translation completed
-          setTimeout(() => {
-            setJobs((prevJobs) =>
-              prevJobs.map((job) =>
-                job.id === newJob.id
+          // Process translation when complete
+          setTimeout(async () => {
+            try {
+              // In a real app, this would actually translate the image
+              const resultData = await performOCRAndTranslation(
+                imageData,
+                sourceLanguage,
+                targetLanguage
+              );
+              
+              setJobs((prevJobs) =>
+                prevJobs.map((job) =>
+                  job.id === newJob.id
+                    ? {
+                        ...job,
+                        progress: 100,
+                        status: "completed",
+                        resultData: resultData,
+                      }
+                    : job
+                )
+              );
+              
+              setCurrentJob((prev) =>
+                prev?.id === newJob.id
                   ? {
-                      ...job,
+                      ...prev,
                       progress: 100,
                       status: "completed",
-                      resultData: imageData, // In a real app, this would be the translated image
+                      resultData: resultData,
                     }
-                  : job
-              )
-            );
-            
-            setCurrentJob((prev) =>
-              prev?.id === newJob.id
-                ? {
-                    ...prev,
-                    progress: 100,
-                    status: "completed",
-                    resultData: imageData, // In a real app, this would be the translated image
-                  }
-                : prev
-            );
-            
-            toast({
-              title: "Translation completed",
-              description: "Your manga has been translated successfully!",
-              duration: 3000,
-            });
+                  : prev
+              );
+              
+              toast({
+                title: "Translation completed",
+                description: "Your manga has been translated successfully!",
+                duration: 3000,
+              });
+            } catch (error) {
+              console.error("Error during translation processing:", error);
+              handleTranslationError(newJob.id, "Error processing translation");
+            }
           }, 1000);
         }
-      }, 500);
+      }, 300); // Faster updates for a smoother experience
     } catch (error) {
       console.error("Translation failed", error);
       toast({
@@ -126,6 +190,27 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
         duration: 3000,
       });
     }
+  };
+
+  const handleTranslationError = (jobId: string, errorMessage: string) => {
+    setJobs((prevJobs) =>
+      prevJobs.map((job) =>
+        job.id === jobId
+          ? { ...job, status: "failed", error: errorMessage }
+          : job
+      )
+    );
+    
+    setCurrentJob((prev) =>
+      prev?.id === jobId ? { ...prev, status: "failed", error: errorMessage } : prev
+    );
+    
+    toast({
+      variant: "destructive",
+      title: "Translation failed",
+      description: errorMessage,
+      duration: 3000,
+    });
   };
 
   const cancelTranslation = (jobId: string) => {
