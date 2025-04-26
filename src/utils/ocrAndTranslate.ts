@@ -77,8 +77,9 @@ export const performOCR = async (imageData: string): Promise<string> => {
     await worker.initialize(languages);
     
     // Set parameters to improve OCR for manga text
+    // Fix: Use numeric value instead of string for PSM
     await worker.setParameters({
-      tessedit_pageseg_mode: '6', // Assume a single uniform block of text
+      tessedit_pageseg_mode: 6, // Changed from '6' to 6 (numeric value)
       preserve_interword_spaces: '0', // Better for manga where spaces often don't matter
     });
     
