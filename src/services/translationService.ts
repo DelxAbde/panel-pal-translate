@@ -32,7 +32,13 @@ export const useTranslationService = () => {
       });
 
       // If source is 'auto', attempt to auto-detect the language after OCR
-      const extractedText = await performOCR(imageData);
+      let extractedText;
+      try {
+        extractedText = await performOCR(imageData);
+      } catch (ocrError) {
+        console.error("OCR error:", ocrError);
+        throw new Error("Text detection failed. Please try again with a clearer image.");
+      }
       
       onProgress({
         stage: 'ocr',
@@ -55,13 +61,19 @@ export const useTranslationService = () => {
           message: "Detecting language..."
         });
         
-        finalSourceLanguage = await detectLanguage(extractedText);
-        
-        toast({
-          title: "Language Detected",
-          description: `Detected language: ${finalSourceLanguage}`,
-          duration: 2000,
-        });
+        try {
+          finalSourceLanguage = await detectLanguage(extractedText);
+          
+          toast({
+            title: "Language Detected",
+            description: `Detected language: ${finalSourceLanguage}`,
+            duration: 2000,
+          });
+        } catch (detectError) {
+          console.error("Language detection error:", detectError);
+          // Default to English if detection fails
+          finalSourceLanguage = 'en';
+        }
       }
 
       // Step 3: Translation
@@ -77,11 +89,26 @@ export const useTranslationService = () => {
         duration: 2000,
       });
 
-      const translatedText = await translateText(
-        extractedText,
-        finalSourceLanguage,
-        targetLanguage
-      );
+      let translatedText;
+      try {
+        translatedText = await translateText(
+          extractedText,
+          finalSourceLanguage,
+          targetLanguage
+        );
+      } catch (translationError) {
+        console.error("Translation error:", translationError);
+        // For this version, we'll just use the original text if translation fails
+        // In a production app, you might want to show an error message
+        translatedText = `[Translation failed] ${extractedText}`;
+        
+        toast({
+          variant: "destructive",
+          title: "Translation Issue",
+          description: "Translation service is unavailable. Displaying original text.",
+          duration: 3000,
+        });
+      }
       
       onProgress({
         stage: 'translation',
@@ -92,7 +119,7 @@ export const useTranslationService = () => {
       // Step 4: Return the result
       return {
         originalText: extractedText,
-        translatedText: translatedText,
+        translatedText: translatedText || extractedText,
         detectedLanguage: finalSourceLanguage
       };
     } catch (error) {
