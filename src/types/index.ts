@@ -1,4 +1,3 @@
-
 export type User = {
   id: string;
   username: string;
@@ -30,16 +29,21 @@ export type TranslationStyle = {
   description: string;
 }
 
-export type TranslationJob = {
+export interface TranslationJob {
   id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: "pending" | "processing" | "completed" | "failed";
   progress: number;
+  progressMessage?: string;
   sourceLanguage: string;
   targetLanguage: string;
   font: string;
   fontSize: number;
   translationStyle: string;
-  imageData?: string;
+  imageData: string;
   resultData?: string;
+  originalText?: string;
+  translatedText?: string;
   error?: string;
+  createdAt?: string;
+  completedAt?: string;
 }

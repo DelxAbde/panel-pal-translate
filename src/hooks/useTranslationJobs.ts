@@ -3,6 +3,7 @@ import { useState } from "react";
 import { TranslationJob } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
+import { ProgressStep } from "@/services/translationService";
 
 export const useTranslationJobs = () => {
   const [jobs, setJobs] = useState<TranslationJob[]>([]);
@@ -19,7 +20,7 @@ export const useTranslationJobs = () => {
   ): TranslationJob => {
     const job: TranslationJob = {
       id: uuidv4(),
-      status: "pending",
+      status: "processing",
       progress: 0,
       sourceLanguage,
       targetLanguage,
@@ -27,6 +28,7 @@ export const useTranslationJobs = () => {
       fontSize,
       translationStyle,
       imageData,
+      createdAt: new Date().toISOString(),
     };
 
     setJobs((prevJobs) => [...prevJobs, job]);
@@ -34,15 +36,49 @@ export const useTranslationJobs = () => {
     return job;
   };
 
-  const updateJobProgress = (jobId: string, progress: number) => {
+  const updateJobProgress = (jobId: string, progressStep: ProgressStep) => {
+    // Calculate overall progress based on the stage
+    let overallProgress = 0;
+    
+    switch (progressStep.stage) {
+      case 'ocr':
+        // OCR is 0-40% of the overall process
+        overallProgress = Math.floor(progressStep.progress * 0.4);
+        break;
+      case 'translation':
+        // Translation is 40-80% of the overall process
+        overallProgress = 40 + Math.floor(progressStep.progress * 0.4);
+        break;
+      case 'rendering':
+        // Rendering is 80-100% of the overall process
+        overallProgress = 80 + Math.floor(progressStep.progress * 0.2);
+        break;
+    }
+    
     setJobs((prevJobs) =>
       prevJobs.map((j) =>
-        j.id === jobId ? { ...j, progress } : j
+        j.id === jobId 
+          ? { 
+              ...j, 
+              progress: overallProgress,
+              progressMessage: progressStep.message
+            }
+          : j
       )
+    );
+    
+    setCurrentJob((prev) =>
+      prev?.id === jobId
+        ? { 
+            ...prev, 
+            progress: overallProgress,
+            progressMessage: progressStep.message
+          }
+        : prev
     );
   };
 
-  const completeJob = (jobId: string, resultData: string) => {
+  const completeJob = (jobId: string, resultData: string, originalText: string, translatedText: string) => {
     setJobs((prevJobs) =>
       prevJobs.map((j) =>
         j.id === jobId
@@ -50,7 +86,10 @@ export const useTranslationJobs = () => {
               ...j,
               progress: 100,
               status: "completed",
-              resultData
+              resultData,
+              originalText,
+              translatedText,
+              completedAt: new Date().toISOString()
             }
           : j
       )
@@ -62,7 +101,10 @@ export const useTranslationJobs = () => {
             ...prev,
             progress: 100,
             status: "completed",
-            resultData
+            resultData,
+            originalText,
+            translatedText,
+            completedAt: new Date().toISOString()
           }
         : prev
     );
@@ -78,13 +120,25 @@ export const useTranslationJobs = () => {
     setJobs((prevJobs) =>
       prevJobs.map((job) =>
         job.id === jobId
-          ? { ...job, status: "failed", error }
+          ? { 
+              ...job, 
+              status: "failed", 
+              error,
+              completedAt: new Date().toISOString()
+            }
           : job
       )
     );
     
     setCurrentJob((prev) =>
-      prev?.id === jobId ? { ...prev, status: "failed", error } : prev
+      prev?.id === jobId 
+        ? { 
+            ...prev, 
+            status: "failed", 
+            error,
+            completedAt: new Date().toISOString() 
+          } 
+        : prev
     );
     
     toast({

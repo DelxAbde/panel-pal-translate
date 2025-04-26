@@ -1,6 +1,12 @@
 
-import { translateText, performOCR } from "@/utils/ocrAndTranslate";
+import { translateText, performOCR, detectLanguage } from "@/utils/ocrAndTranslate";
 import { useToast } from "@/hooks/use-toast";
+
+export type ProgressStep = {
+  stage: 'ocr' | 'translation' | 'rendering';
+  progress: number;
+  message: string;
+};
 
 export const useTranslationService = () => {
   const { toast } = useToast();
@@ -9,30 +15,92 @@ export const useTranslationService = () => {
     imageData: string,
     sourceLanguage: string,
     targetLanguage: string,
-    onProgress: (progress: number) => void
+    onProgress: (progress: ProgressStep) => void
   ) => {
-    toast({
-      title: "OCR Processing",
-      description: "Detecting text in your manga...",
-      duration: 2000,
-    });
+    try {
+      // Step 1: OCR Processing
+      onProgress({
+        stage: 'ocr',
+        progress: 0,
+        message: "Starting text detection..."
+      });
 
-    const extractedText = await performOCR(imageData);
-    onProgress(50);
+      toast({
+        title: "OCR Processing",
+        description: "Detecting text in your manga...",
+        duration: 2000,
+      });
 
-    toast({
-      title: "Translation",
-      description: `Translating from ${sourceLanguage} to ${targetLanguage}...`,
-      duration: 2000,
-    });
+      // If source is 'auto', attempt to auto-detect the language after OCR
+      const extractedText = await performOCR(imageData);
+      
+      onProgress({
+        stage: 'ocr',
+        progress: 100,
+        message: "Text detection complete"
+      });
+      
+      // Validate the extracted text
+      if (!extractedText || !extractedText.trim()) {
+        throw new Error("No text detected in the image. Try adjusting the image or selecting a different area.");
+      }
 
-    const translatedText = await translateText(
-      extractedText,
-      sourceLanguage,
-      targetLanguage
-    );
+      // Step 2: Auto-detect language if set to 'auto'
+      let finalSourceLanguage = sourceLanguage;
+      
+      if (sourceLanguage === 'auto') {
+        onProgress({
+          stage: 'translation',
+          progress: 10,
+          message: "Detecting language..."
+        });
+        
+        finalSourceLanguage = await detectLanguage(extractedText);
+        
+        toast({
+          title: "Language Detected",
+          description: `Detected language: ${finalSourceLanguage}`,
+          duration: 2000,
+        });
+      }
 
-    return translatedText;
+      // Step 3: Translation
+      onProgress({
+        stage: 'translation',
+        progress: 30,
+        message: `Translating from ${finalSourceLanguage} to ${targetLanguage}...`
+      });
+
+      toast({
+        title: "Translation",
+        description: `Translating from ${finalSourceLanguage} to ${targetLanguage}...`,
+        duration: 2000,
+      });
+
+      const translatedText = await translateText(
+        extractedText,
+        finalSourceLanguage,
+        targetLanguage
+      );
+      
+      onProgress({
+        stage: 'translation',
+        progress: 100,
+        message: "Translation complete"
+      });
+      
+      // Step 4: Return the result
+      return {
+        originalText: extractedText,
+        translatedText: translatedText,
+        detectedLanguage: finalSourceLanguage
+      };
+    } catch (error) {
+      console.error("Translation service error:", error);
+      throw error instanceof Error 
+        ? error 
+        : new Error("An unknown error occurred during translation");
+    }
   };
 
   return {

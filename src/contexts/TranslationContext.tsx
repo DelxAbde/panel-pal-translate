@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 import { TranslationJob } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslationJobs } from "@/hooks/useTranslationJobs";
-import { useTranslationService } from "@/services/translationService";
+import { useTranslationService, ProgressStep } from "@/services/translationService";
 
 type TranslationContextType = {
   jobs: TranslationJob[];
@@ -70,14 +70,27 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
     );
 
     try {
-      const translatedText = await processTranslation(
+      // Process the translation with detailed progress updates
+      const progressHandler = (progress: ProgressStep) => {
+        updateJobProgress(job.id, progress);
+      };
+
+      const result = await processTranslation(
         imageData,
         sourceLanguage,
         targetLanguage,
-        (progress) => updateJobProgress(job.id, progress)
+        progressHandler
       );
 
-      completeJob(job.id, translatedText);
+      // For now, we'll just display the original image as the result
+      // In a future update, we'll implement the text rendering on the image
+      completeJob(
+        job.id,
+        imageData, // Simply using the original image for now
+        result.originalText,
+        result.translatedText
+      );
+      
     } catch (error) {
       console.error("Translation failed", error);
       failJob(
