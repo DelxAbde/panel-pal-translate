@@ -65,6 +65,7 @@ export const translateText = async (
 
 export const performOCR = async (imageData: string): Promise<string> => {
   const Tesseract = (await import('tesseract.js')).default;
+  const { PSM } = await import('tesseract.js');
 
   try {
     console.log('Starting OCR process...');
@@ -77,9 +78,8 @@ export const performOCR = async (imageData: string): Promise<string> => {
     await worker.initialize(languages);
     
     // Set parameters to improve OCR for manga text
-    // Fix: Use numeric value instead of string for PSM
     await worker.setParameters({
-      tessedit_pageseg_mode: 6, // Changed from '6' to 6 (numeric value)
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK,  // Fixed: Using Tesseract PSM enum
       preserve_interword_spaces: '0', // Better for manga where spaces often don't matter
     });
     
