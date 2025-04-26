@@ -1,8 +1,9 @@
-import { createContext, useContext, useState } from "react";
+
+import { createContext, useContext } from "react";
 import { TranslationJob } from "@/types";
-import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/hooks/use-toast";
-import { translateText, performOCR } from "@/utils/ocrAndTranslate";
+import { useTranslationJobs } from "@/hooks/useTranslationJobs";
+import { useTranslationService } from "@/services/translationService";
 
 type TranslationContextType = {
   jobs: TranslationJob[];
@@ -30,9 +31,16 @@ export const useTranslation = () => {
 };
 
 export const TranslationProvider = ({ children }: { children: React.ReactNode }) => {
-  const [jobs, setJobs] = useState<TranslationJob[]>([]);
-  const [currentJob, setCurrentJob] = useState<TranslationJob | null>(null);
   const { toast } = useToast();
+  const {
+    jobs,
+    currentJob,
+    createJob,
+    updateJobProgress,
+    completeJob,
+    failJob,
+  } = useTranslationJobs();
+  const { processTranslation } = useTranslationService();
 
   const startTranslation = async (
     sourceLanguage: string,
@@ -52,121 +60,35 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
       return;
     }
 
-    const job: TranslationJob = {
-      id: uuidv4(),
-      status: "pending",
-      progress: 0,
+    const job = createJob(
       sourceLanguage,
       targetLanguage,
       font,
       fontSize,
       translationStyle,
-      imageData,
-    };
-
-    setJobs((prevJobs) => [...prevJobs, job]);
-    setCurrentJob(job);
+      imageData
+    );
 
     try {
-      // Start OCR
-      toast({
-        title: "OCR Processing",
-        description: "Detecting text in your manga...",
-        duration: 2000,
-      });
-
-      const extractedText = await performOCR(imageData);
-      
-      setJobs((prevJobs) =>
-        prevJobs.map((j) =>
-          j.id === job.id ? { ...j, progress: 50 } : j
-        )
-      );
-
-      // Translate the extracted text
-      toast({
-        title: "Translation",
-        description: `Translating from ${sourceLanguage} to ${targetLanguage}...`,
-        duration: 2000,
-      });
-
-      const translatedText = await translateText(
-        extractedText,
+      const translatedText = await processTranslation(
+        imageData,
         sourceLanguage,
-        targetLanguage
+        targetLanguage,
+        (progress) => updateJobProgress(job.id, progress)
       );
 
-      // Store the translated text
-      setJobs((prevJobs) =>
-        prevJobs.map((j) =>
-          j.id === job.id
-            ? {
-                ...j,
-                progress: 100,
-                status: "completed",
-                resultData: translatedText
-              }
-            : j
-        )
-      );
-
-      setCurrentJob((prev) =>
-        prev?.id === job.id
-          ? {
-              ...prev,
-              progress: 100,
-              status: "completed",
-              resultData: translatedText
-            }
-          : prev
-      );
-
-      toast({
-        title: "Translation completed",
-        description: "Your manga has been translated successfully!",
-        duration: 3000,
-      });
-
+      completeJob(job.id, translatedText);
     } catch (error) {
       console.error("Translation failed", error);
-      handleTranslationError(job.id, error instanceof Error ? error.message : "Translation failed. Please try again.");
+      failJob(
+        job.id,
+        error instanceof Error ? error.message : "Translation failed. Please try again."
+      );
     }
   };
 
-  const handleTranslationError = (jobId: string, errorMessage: string) => {
-    setJobs((prevJobs) =>
-      prevJobs.map((job) =>
-        job.id === jobId
-          ? { ...job, status: "failed", error: errorMessage }
-          : job
-      )
-    );
-    
-    setCurrentJob((prev) =>
-      prev?.id === jobId ? { ...prev, status: "failed", error: errorMessage } : prev
-    );
-    
-    toast({
-      variant: "destructive",
-      title: "Translation failed",
-      description: errorMessage,
-      duration: 3000,
-    });
-  };
-
   const cancelTranslation = (jobId: string) => {
-    setJobs((prevJobs) =>
-      prevJobs.map((job) =>
-        job.id === jobId
-          ? { ...job, status: "failed", error: "Cancelled by user" }
-          : job
-      )
-    );
-    
-    setCurrentJob((prev) =>
-      prev?.id === jobId ? null : prev
-    );
-    
+    failJob(jobId, "Cancelled by user");
     toast({
       title: "Translation cancelled",
       description: "The translation job has been cancelled",
@@ -187,7 +109,6 @@ export const TranslationProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-      // Create a download link
       const link = document.createElement("a");
       link.href = job.resultData;
       link.download = `translated_manga_${job.id}.png`;
